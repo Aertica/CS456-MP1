@@ -41,3 +41,20 @@ DENY | blacklisted source IP 198.51.100.7
 
 
 Blocked IP addresses are stored in config.py.
+
+
+## 3. Heartbeat monitor
+
+Run from `src/`, each in its own terminal:
+
+```text
+python monitor.py
+python service.py
+python send_packet.py --src 10.1.1.1
+```
+
+The service sends a heartbeat every 1 second. If 3 are missed, the monitor
+prints an alert and saves it to `monitor.log`.
+
+The service crashes at random, so keep sending packets until it does.
+Settings are in `config.py`.
