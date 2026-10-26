@@ -43,9 +43,12 @@ def fault_thread() -> None:
 
 def handle_client(conn: socket.socket) -> None:
     data = conn.recv(4096)
-    line = data.decode("utf-8", errors="replace").splitlines()[0]
+    maybe_crash()
     try:
-        packet = Packet.from_line(line)
+        lines = data.decode("utf-8", errors="replace").splitlines()
+        if not lines:
+            raise ValueError("empty request")
+        packet = Packet.from_line(lines[0])
         result = inspect(packet)
         _log(f"inspecting {packet.src_ip} -> {packet.dst_ip}: {result.verdict.value} ({result.reason})")
         response = f"{result.verdict.value} | {result.reason}\n"
