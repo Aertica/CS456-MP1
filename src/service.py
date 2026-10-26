@@ -1,6 +1,12 @@
 import argparse
 import socket
 import sys
+import json
+import os
+import random
+import threading
+import time
+
 from datetime import datetime, timezone
 import config
 from inspector import inspect
@@ -10,6 +16,29 @@ from models import Packet
 def _log(message: str) -> None:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     print(f"[{ts}] [sentinel] {message}", flush=True)
+
+
+def maybe_crash() -> None:
+    if random.random() < config.CRASH_PROBABILITY:
+        _log("simulated crash on request: exiting")
+        os._exit(1)
+
+
+def heartbeat_loop(host: str, port: int, interval: float) -> None:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    seq = 0
+    while True:
+        seq += 1
+        beat = {"service": "NetworkSentinelAgent", "seq": seq,
+                "timestamp": time.time(), "status": "OK"}
+        sock.sendto(json.dumps(beat).encode("utf-8"), (host, port))
+        time.sleep(interval)
+
+
+def fault_thread() -> None:
+    time.sleep(random.uniform(config.FAULT_MIN_S, config.FAULT_MAX_S))
+    _log("simulated background fault: exiting")
+    os._exit(1)
 
 
 def handle_client(conn: socket.socket) -> None:
