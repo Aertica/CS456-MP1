@@ -48,8 +48,8 @@ def run_spoof(
             sock.sendto(payload_bytes, (monitor_host, monitor_port))
 
             _log(
-                f"Injected forgerd heartbeat -> Seq: {payload_data['seq']}"
-                f"Timestamp: {payload_data['timestamp']:.2f}"
+                f"Injected forged heartbeat -> Seq: {payload_data['seq']} "
+                f"| Timestamp: {payload_data['timestamp']:.2f}"
             )
             time.sleep(interval)
     except KeyboardInterrupt:
@@ -63,10 +63,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument(
         "--monitor-host",
         default=getattr(config, "MONITOR_HOST", config.HOST),
-        help="Monitor UDP Port",
+        help="Monitor UDP Host",
     )
     parser.add_argument(
         "--monitor-port",
+        type=int,
         default=getattr(config, "MONITOR_PORT", 1025),
         help="Monitor UDP Port",
     )
