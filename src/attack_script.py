@@ -53,7 +53,7 @@ def run_spoof(
             )
             time.sleep(interval)
     except KeyboardInterrupt:
-        _log("Adversarial audit stopped.")
+        _log("Adversarial script stopped.")
 
 
 def main(argv: list[str] | None = None) -> int:
