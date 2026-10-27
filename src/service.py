@@ -67,6 +67,7 @@ def handle_client(conn: socket.socket) -> None:
     data = conn.recv(4096)
     maybe_crash()
     try:
+        line = data.decode("utf-8", errors="replace").splitlines()[0]
         packet = Packet.from_line(line)
         if random.random() < config.REQUEST_CRASH_PROB:
             crash("simulated segfault on packet")
