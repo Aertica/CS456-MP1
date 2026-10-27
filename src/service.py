@@ -40,9 +40,32 @@ def _log(message: str) -> None:
     print(f"[{ts}] [sentinel] {message}", flush=True)
 
 
+def maybe_crash() -> None:
+    if random.random() < config.CRASH_PROBABILITY:
+        _log("simulated crash on request: exiting")
+        os._exit(1)
+
+
+def heartbeat_loop(host: str, port: int, interval: float) -> None:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    seq = 0
+    while True:
+        seq += 1
+        beat = {"service": "NetworkSentinelAgent", "seq": seq,
+                "timestamp": time.time(), "status": "OK"}
+        sock.sendto(json.dumps(beat).encode("utf-8"), (host, port))
+        time.sleep(interval)
+
+
+def fault_thread() -> None:
+    time.sleep(random.uniform(config.FAULT_MIN_S, config.FAULT_MAX_S))
+    _log("simulated background fault: exiting")
+    os._exit(1)
+
+
 def handle_client(conn: socket.socket) -> None:
     data = conn.recv(4096)
-    line = data.decode("utf-8", errors="replace").splitlines()[0]
+    maybe_crash()
     try:
         packet = Packet.from_line(line)
         if random.random() < config.REQUEST_CRASH_PROB:
@@ -60,11 +83,21 @@ def handle_client(conn: socket.socket) -> None:
 
 def run_server(host: str, port: int) -> None:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server:
-        server.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        if hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            server.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        else:
+            server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
         server.bind((host, port))
         server.settimeout(1)
         server.listen(5)
         _log(f"listening on {host}:{port}")
+
+        threading.Thread(
+            target=heartbeat_loop,
+            args=(config.MONITOR_HOST, config.MONITOR_PORT, config.HEARTBEAT_INTERVAL),
+            daemon=True,
+        ).start()
+        threading.Thread(target=fault_thread, daemon=True).start()
 
         while True:
             try:
