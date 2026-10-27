@@ -1,17 +1,39 @@
 import argparse
-import socket
-import sys
 import json
 import os
 import random
+import socket
+import sys
 import threading
 import time
-
 from datetime import datetime, timezone
 import config
 from inspector import inspect
 from models import Packet
 
+
+#heartbeat
+
+def send_heartbeats() -> None:
+    sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    seq = 0
+    while True:
+        seq += 1
+        beat = {"service": "NetworkSentinelAgent", "seq": seq,
+                "timestamp": time.time(), "status": "FILTERING_ACTIVE"}
+        sock.sendto(json.dumps(beat).encode(), (config.MONITOR_HOST, config.MONITOR_PORT))
+        time.sleep(config.HEARTBEAT_INTERVAL)
+
+#kill the whole process
+def crash(reason: str) -> None:
+    _log(f"CRASH: {reason}")
+    os._exit(1) 
+
+def random_background_crash() -> None:
+    while True:
+        time.sleep(1)
+        if random.random() < config.BACKGROUND_CRASH_PROB:
+            crash("simulated memory exhaustion")
 
 def _log(message: str) -> None:
     ts = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
@@ -45,14 +67,15 @@ def handle_client(conn: socket.socket) -> None:
     data = conn.recv(4096)
     maybe_crash()
     try:
-        lines = data.decode("utf-8", errors="replace").splitlines()
-        if not lines:
-            raise ValueError("empty request")
-        packet = Packet.from_line(lines[0])
+        packet = Packet.from_line(line)
+        if random.random() < config.REQUEST_CRASH_PROB:
+            crash("simulated segfault on packet")
         result = inspect(packet)
         _log(f"inspecting {packet.src_ip} -> {packet.dst_ip}: {result.verdict.value} ({result.reason})")
         response = f"{result.verdict.value} | {result.reason}\n"
     except ValueError as exc:
+        if random.random() < config.MALFORMED_CRASH_PROB:
+            crash("simulated segfault on malformed packet")
         _log(f"bad request: {exc}")
         response = f"ERROR | {exc}\n"
     conn.sendall(response.encode("utf-8"))
@@ -95,6 +118,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--host", default=config.HOST)
     parser.add_argument("--port", type=int, default=config.PORT)
     args = parser.parse_args(argv)
+    threading.Thread(target=send_heartbeats, daemon=True).start()
+    threading.Thread(target=random_background_crash, daemon=True).start()
     try:
         run_server(args.host, args.port)
     except KeyboardInterrupt:
