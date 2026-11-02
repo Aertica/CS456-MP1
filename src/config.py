@@ -4,6 +4,7 @@ SECONDARY_PORT = 9101
 
 SYNC_HOST = "127.0.0.1"
 SYNC_PORT = 9200
+PROMOTE_PORT = 9300 #secondary failover signal
 
 # Monitor Config
 MONITOR_HOST = "127.0.0.1"

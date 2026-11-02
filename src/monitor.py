@@ -14,35 +14,58 @@ def log(message):
     with open("monitor.log", "a") as f:
         f.write(line + "\n")
 
+def send_promote(sock):
+    sock.sendto(b'{"type": "promote"}', (config.SYNC_HOST, config.PROMOTE_PORT))
+
 def main():
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((config.MONITOR_HOST, config.MONITOR_PORT))
     sock.settimeout(0.5)
     log(f"listening on {config.MONITOR_HOST}:{config.MONITOR_PORT} (W = {WINDOW}s)")
 
-    last_beat = None
-    alive = False
+    last_beat = {} 
+    alive = {}
+    failed_over = False
+    crash_time = None #set while waiting for the second take over
 
     while True:
         try:
             data, addr = sock.recvfrom(4096)
             beat = json.loads(data)
-
-            #Baseline any heartbeat is trusted without auth 
-            last_beat = time.monotonic()
-            if not alive:
-                log(f"service UP (seq {beat['seq']})")
-                alive = True
+            role = beat.get("role", "primary")
+            seq = beat["seq"]
+            now = time.monotonic()
+            last_beat[role] = now
+            if not alive.get(role):
+                alive[role] = True
+                if role == "primary" and crash_time is not None:
+                    log(f"SERVICE RESTORED: secondary promoted to primary (MTTR {now - crash_time:.1f}s)")
+                    crash_time = None
+                else:
+                    log(f"{role} UP (seq {seq})")
             else:
-                print(f" beat OK seq={beat['seq']}", flush=True)
+                print(f" beat OK {role} seq={seq}", flush=True)
         except socket.timeout:
             pass
-        except (OSError, ValueError, KeyError, TypeError):
+        except (OSError, ValueError, KeyError, TypeError, AttributeError):
             pass #Ignore bad packet; monitor must never crash
 
-        if alive and time.monotonic() - last_beat > WINDOW:
-            log(f"ALERT: service down no heartbeat for {WINDOW}s")
-            alive = False
+        now = time.monotonic()
+        for role in list(alive):
+            if alive[role] and now - last_beat[role] > WINDOW:
+                alive[role] = False
+                log(f"CRASH DETECTED: {role} missed heartbeats for {WINDOW}s")
+                if role != "primary":
+                    continue
+                if not failed_over and alive.get("secondary"):
+                    log("FAILOVER TRIGGERED: promoting secondary")
+                    send_promote(sock)
+                    failed_over = True
+                    crash_time = last_beat[role]
+                elif not failed_over:
+                    log("ALERT: no secondary available, failover impossible")
+                else:
+                    log("ALERT: promoted primary is down, no further failover")
 
 if __name__ == "__main__":
     try:
