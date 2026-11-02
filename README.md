@@ -79,3 +79,15 @@ DENY | blacklisted source IP 198.51.100.7
 
 Blocked IP addresses are stored in config.py.
 
+## 4. Failover
+
+Run from `src/`, in this order:
+
+```text
+python monitor.py
+python service.py --role secondary
+python service.py
+```
+
+If the primary crashes, the monitor promotes the secondary, which takes over
+port 9100 with the same blacklist.

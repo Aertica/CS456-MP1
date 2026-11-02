@@ -12,6 +12,7 @@ from inspector import inspect
 from models import Packet
 from state import DynamicState
 from state_sync import run_sync_server, send_request_sync
+from promote import promote_when_told
 
 
 def _log(role: str, message: str) -> None:
@@ -134,8 +135,7 @@ def run_secondary(sync_host: str, sync_port: int) -> None:
         daemon=True,
     ).start()
 
-    while True:
-        time.sleep(3600)
+    promote_when_told(state, process_line, _log, heartbeat_loop)
 
 
 def main(argv: list[str] | None = None) -> int:
