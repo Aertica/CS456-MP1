@@ -36,6 +36,12 @@ In a second terminal:
 python service.py
 ```
 
+In a third terminal:
+
+```text
+python service.py --role secondary
+```
+
 * Listens on `127.0.0.1:9100` by default.
 * Emits periodic heartbeat signals to 127.0.0.1:1025 every second.
 
@@ -47,7 +53,7 @@ python service.py --host <host> --port <port>
 
 ## 3. Send a packet
 
-In a third terminal:
+In a forth terminal:
 
 ```text
 python send_packet.py --src 192.168.1.10 --payload "hello"
